@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>꼬부기의 바다 게임 (Squirtle Ocean Game)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;700;900&display=swap');
+
+        :root {
+            --ocean-deep: #05192d;
+            --ocean-blue: #0077b6;
+            --ocean-light: #48cae4;
+            --ocean-surface: #90e0ef;
+            --bubble-glow: rgba(72, 202, 228, 0.45);
+            --font-display: 'Jua', 'Noto Sans KR', sans-serif;
+            --font-ui: 'Noto Sans KR', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: linear-gradient(180deg, #023e8a 0%, #0077b6 35%, #0096c7 70%, #001233 100%);
+            color: #ffffff;
+            font-family: var(--font-ui);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* 바닷속 햇살 비침 (Sun Rays / Caustics) */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(ellipse at 50% -10%, rgba(200, 245, 255, 0.35) 0%, transparent 65%),
+                        linear-gradient(135deg, rgba(255, 255, 255, 0.08) 25%, transparent 25%),
+                        linear-gradient(225deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%);
+            background-size: 100% 100%, 80px 80px, 80px 80px;
+            pointer-events: none;
+            z-index: 1;
+            animation: waterShimmer 8s ease-in-out infinite alternate;
+        }
+
+        @keyframes waterShimmer {
+            0% { opacity: 0.7; transform: translateY(0) scale(1); }
+            50% { opacity: 0.95; transform: translateY(5px) scale(1.02); }
+            100% { opacity: 0.75; transform: translateY(-3px) scale(1); }
+        }
+
+        /* 유영하는 물방울 배경 파티클 컨테이너 */
+        .bubbles-bg {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 2;
+            overflow: hidden;
+        }
+
+        .ambient-bubble {
+            position: absolute;
+            bottom: -50px;
+            background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.8), rgba(144, 224, 239, 0.25) 60%, rgba(255, 255, 255, 0.4) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            animation: riseUp linear infinite;
+        }
+
+        @keyframes riseUp {
+            0% { transform: translateY(0) translateX(0); opacity: 0; }
+            10% { opacity: 0.8; }
+            90% { opacity: 0.8; }
+            100% { transform: translateY(-110vh) translateX(35px); opacity: 0; }
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 12px;
+            position: relative;
+            z-index: 10;
+        }
+
+        h1 {
+            font-family: var(--font-display);
+            font-size: 3.2rem;
+            color: #caf0f8;
+            letter-spacing: 2px;
+            text-shadow: 0 4px 12px rgba(0, 30, 80, 0.8), 0 0 25px rgba(144, 224, 239, 0.8);
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .header-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            border: 2px solid #caf0f8;
+            box-shadow: 0 0 15px rgba(202, 240, 248, 0.8);
+            object-fit: cover;
+            animation: bobbing 3s ease-in-out infinite;
+        }
+
+        @keyframes bobbing {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            color: #ade8f4;
+            font-weight: 500;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+        }
+
+        /* 바다 테마 대시보드 */
+        .dashboard {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 95%;
+            max-width: 820px;
+            background: rgba(4, 38, 74, 0.75);
+            backdrop-filter: blur(8px);
+            border: 2px solid rgba(144, 224, 239, 0.5);
+            padding: 10px 22px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 18, 51, 0.5), inset 0 0 15px rgba(72, 202, 228, 0.2);
+            margin-bottom: 12px;
+            z-index: 10;
+        }
+
+        .stat-group {
+            display: flex;
+            align-items: center;
+            gap: 22px;
+        }
+
+        .stat-box {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .stat-label {
+            font-size: 0.78rem;
+            color: #90e0ef;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 1.65rem;
+            font-weight: 900;
+            color: #ffffff;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            font-family: monospace;
+        }
+
+        .stat-value.danger {
+            color: #ff6b6b;
+            animation: pulseDanger 0.8s infinite alternate;
+        }
+
+        @keyframes pulseDanger {
+            0% { transform: scale(1); text-shadow: 0 0 6px #ff6b6b; }
+            100% { transform: scale(1.08); text-shadow: 0 0 16px #ff0000; }
+        }
+
+        .highlight-sum {
+            display: inline-block;
+            font-size: 1.25rem;
+            font-weight: 900;
+            color: #ffd166;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #0077b6, #023e8a);
+            color: #e0f2fe;
+            border: 1px solid #48cae4;
+            padding: 8px 18px;
+            font-size: 0.92rem;
+            font-weight: 700;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3), inset 0 1px 2px rgba(255, 255, 255, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn:hover {
+            background: linear-gradient(135deg, #0096c7, #0077b6);
+            color: #ffffff;
+            box-shadow: 0 0 15px rgba(72, 202, 228, 0.6);
+            transform: translateY(-2px);
+        }
+
+        /* 게임 메인 보드 컨테이너 */
+        .board-container {
+            position: relative;
+            background: rgba(3, 25, 48, 0.85);
+            backdrop-filter: blur(10px);
+            border: 3px solid rgba(72, 202, 228, 0.6);
+            box-shadow: 0 12px 40px rgba(0, 10, 30, 0.7), inset 0 0 35px rgba(0, 119, 182, 0.4);
+            border-radius: 18px;
+            padding: 14px;
+            z-index: 10;
+            touch-action: none;
+        }
+
+        /* 그리드 */
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(17, 42px);
+            grid-template-rows: repeat(10, 42px);
+            gap: 5px;
+            position: relative;
+        }
+
+        /* 꼬부기 물방울 셀 */
+        .apple {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: crosshair;
+            transition: transform 0.12s, box-shadow 0.12s, filter 0.12s;
+            overflow: visible;
+        }
+
+        /* 꼬부기 배경 이미지 */
+        .apple-img {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid rgba(144, 224, 239, 0.6);
+            box-shadow: inset 0 0 8px rgba(0, 119, 182, 0.5), 0 3px 6px rgba(0, 0, 0, 0.4);
+            pointer-events: none;
+        }
+
+        /* 물방울 하이라이트 레이어 */
+        .apple::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 5px;
+            width: 10px;
+            height: 5px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.7);
+            transform: rotate(-35deg);
+            pointer-events: none;
+        }
+
+        /* 숫자 배지 */
+        .apple-number {
+            position: relative;
+            z-index: 2;
+            font-size: 1.35rem;
+            font-weight: 900;
+            color: #ffffff;
+            text-shadow: 2px 2px 0 #023e8a, -1px -1px 0 #023e8a, 1px -1px 0 #023e8a, -1px 1px 0 #023e8a, 0 3px 6px rgba(0, 0, 0, 0.9);
+            font-family: 'Jua', var(--font-ui);
+            pointer-events: none;
+        }
+
+        /* 드래그 선택 하이라이트 */
+        .apple.selected {
+            transform: scale(1.15);
+            z-index: 5;
+        }
+
+        .apple.selected .apple-img {
+            border-color: #ffd166;
+            box-shadow: 0 0 16px #ffd166, inset 0 0 10px #ffd166;
+            filter: brightness(1.2);
+        }
+
+        .apple.selected .apple-number {
+            color: #ffd166;
+            text-shadow: 2px 2px 0 #000, 0 0 8px #ffd166;
+        }
+
+        /* 제거된 셀 */
+        .apple.removed {
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        /* 물방울 팝 애니메이션 */
+        .water-splash {
+            position: absolute;
+            pointer-events: none;
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(144, 224, 239, 0.9) 10%, rgba(0, 150, 199, 0.8) 50%, transparent 75%);
+            animation: bubblePop 0.45s ease-out forwards;
+            z-index: 20;
+        }
+
+        @keyframes bubblePop {
+            0% { transform: scale(0.6); opacity: 1; }
+            60% { opacity: 0.85; filter: blur(1px); }
+            100% { transform: scale(2.4); opacity: 0; filter: blur(3px); }
+        }
+
+        /* 작은 물방울 파편 */
+        .splash-particle {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #caf0f8;
+            box-shadow: 0 0 6px #48cae4;
+            pointer-events: none;
+            animation: splashFly 0.45s ease-out forwards;
+        }
+
+        @keyframes splashFly {
+            0% { transform: translate(0, 0) scale(1); opacity: 1; }
+            100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
+        }
+
+        /* 드래그 사각형 셀렉터 박스 (물결 느낌) */
+        #selection-box {
+            position: absolute;
+            border: 2px dashed #90e0ef;
+            background-color: rgba(72, 202, 228, 0.22);
+            backdrop-filter: blur(2px);
+            pointer-events: none;
+            display: none;
+            z-index: 30;
+            box-shadow: 0 0 15px rgba(72, 202, 228, 0.5), inset 0 0 12px rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+        }
+
+        /* 모달 오버레이 */
+        .overlay-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(2, 20, 42, 0.92);
+            backdrop-filter: blur(6px);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            border-radius: 18px;
+            text-align: center;
+            padding: 24px;
+        }
+
+        .overlay-screen h2 {
+            font-family: var(--font-display);
+            font-size: 2.8rem;
+            color: #caf0f8;
+            letter-spacing: 2px;
+            margin-bottom: 12px;
+            text-shadow: 0 0 20px rgba(72, 202, 228, 0.8);
+        }
+
+        .overlay-screen p {
+            color: #ade8f4;
+            margin-bottom: 22px;
+            font-size: 1.1rem;
+        }
+
+        .overlay-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 3px solid #90e0ef;
+            box-shadow: 0 0 20px rgba(144, 224, 239, 0.8);
+            margin-bottom: 16px;
+        }
+
+        /* 랭킹 리스트 */
+        .ranking-container {
+            width: 100%;
+            max-width: 420px;
+            background: rgba(4, 40, 77, 0.85);
+            border: 1px solid #48cae4;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+        }
+
+        .ranking-title {
+            font-size: 1.15rem;
+            color: #ffd166;
+            font-weight: 700;
+            margin-bottom: 10px;
+            border-bottom: 1px dashed rgba(144, 224, 239, 0.4);
+            padding-bottom: 6px;
+            font-family: var(--font-display);
+        }
+
+        .ranking-list {
+            list-style: none;
+            max-height: 160px;
+            overflow-y: auto;
+            text-align: left;
+        }
+
+        .ranking-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 10px;
+            font-size: 0.95rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            color: #e0f2fe;
+        }
+
+        .ranking-item:nth-child(1) { color: #ffd166; font-weight: bold; }
+        .ranking-item:nth-child(2) { color: #caf0f8; font-weight: bold; }
+        .ranking-item:nth-child(3) { color: #90e0ef; }
+
+        footer {
+            margin-top: 14px;
+            color: #ade8f4;
+            font-size: 0.9rem;
+            z-index: 10;
+            text-align: center;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+        }
+    </style>
+</head>
+<body>
+    <!-- 배경 물방울 효과 -->
+    <div class="bubbles-bg" id="bubbles-container"></div>
+
+    <header>
+        <h1>
+            <img class="header-icon" src="https://external-preview.redd.it/squirtle-squirt-havent-drawn-a-pokemon-since-the-5th-grade-v0-6XQdfRWtcnqWAZOhqz78YWC65hTy-Y-Q_iPTifDtdd0.jpeg?width=320&amp;crop=smart&amp;auto=webp&amp;s=9b05744b332d77a35387eab957d9d20986f5c318" alt="꼬부기">
+            꼬부기의 바다 게임
+            <img class="header-icon" src="https://external-preview.redd.it/squirtle-squirt-havent-drawn-a-pokemon-since-the-5th-grade-v0-6XQdfRWtcnqWAZOhqz78YWC65hTy-Y-Q_iPTifDtdd0.jpeg?width=320&amp;crop=smart&amp;auto=webp&amp;s=9b05744b332d77a35387eab957d9d20986f5c318" alt="꼬부기">
+        </h1>
+        <div class="subtitle">드래그한 꼬부기들의 숫자 합을 10으로 만들어 바다로 돌려보내자! 🌊</div>
+    </header>
+
+    <div class="dashboard">
+        <div class="stat-group">
+            <div class="stat-box">
+                <span class="stat-label">남은 시간</span>
+                <span class="stat-value" id="timer-display">120.0s</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">점수 (구출한 꼬부기)</span>
+                <span class="stat-value" id="score-display">0</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">선택 합계</span>
+                <span class="highlight-sum" id="sum-display">0 / 10</span>
+            </div>
+        </div>
+        <div class="btn-group">
+            <button class="btn" id="btn-pause">⏸️ 일시 정지</button>
+            <button class="btn" id="btn-restart">🔄 다시 시작</button>
+            <button class="btn" id="btn-ranking-view">🏆 기록 보기</button>
+        </div>
+    </div>
+
+    <div class="board-container" id="board-container">
+        <div id="game-board"></div>
+        <div id="selection-box"></div>
+
+        <!-- 일시 정지 화면 -->
+        <div class="overlay-screen" id="pause-screen">
+            <img class="overlay-avatar" src="https://external-preview.redd.it/squirtle-squirt-havent-drawn-a-pokemon-since-the-5th-grade-v0-6XQdfRWtcnqWAZOhqz78YWC65hTy-Y-Q_iPTifDtdd0.jpeg?width=320&amp;crop=smart&amp;auto=webp&amp;s=9b05744b332d77a35387eab957d9d20986f5c318" alt="꼬부기">
+            <h2>잠시 물속에서 휴식 중...</h2>
+            <p>파도가 잔잔해졌습니다. 숨을 고르고 계속 도전하세요!</p>
+            <button class="btn" id="btn-resume" style="font-size: 1.1rem; padding: 10px 26px;">▶️ 계속하기</button>
+        </div>
+
+        <!-- 게임 종료 화면 -->
+        <div class="overlay-screen" id="gameover-screen">
+            <img class="overlay-avatar" src="https://external-preview.redd.it/squirtle-squirt-havent-drawn-a-pokemon-since-the-5th-grade-v0-6XQdfRWtcnqWAZOhqz78YWC65hTy-Y-Q_iPTifDtdd0.jpeg?width=320&amp;crop=smart&amp;auto=webp&amp;s=9b05744b332d77a35387eab957d9d20986f5c318" alt="꼬부기">
+            <h2 id="gameover-title">탐험 종료!</h2>
+            <p id="gameover-desc">바다 탐험이 끝났습니다.</p>
+            
+            <div class="ranking-container">
+                <div class="ranking-title">🌊 오늘의 바다 수호자 순위 (Top 5)</div>
+                <ul class="ranking-list" id="session-rankings"></ul>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn" id="btn-retry" style="font-size: 1.1rem; padding: 10px 26px;">🌊 다시 탐험하기</button>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        마우스 왼쪽 버튼을 누른 채 드래그하여 직사각형 영역 내 꼬부기 숫자의 합을 10으로 만들어 보세요!
+    </footer>
+
+    <script>
+        const SQUIRTLE_IMG_URL = "https://external-preview.redd.it/squirtle-squirt-havent-drawn-a-pokemon-since-the-5th-grade-v0-6XQdfRWtcnqWAZOhqz78YWC65hTy-Y-Q_iPTifDtdd0.jpeg?width=320&crop=smart&auto=webp&s=9b05744b332d77a35387eab957d9d20986f5c318";
+
+        // 환경 물방울 애니메이션 생성
+        const bubblesContainer = document.getElementById('bubbles-container');
+        for (let i = 0; i < 25; i++) {
+            const bubble = document.createElement('div');
+            bubble.className = 'ambient-bubble';
+            const size = Math.random() * 22 + 10;
+            bubble.style.width = size + 'px';
+            bubble.style.height = size + 'px';
+            bubble.style.left = (Math.random() * 100) + 'vw';
+            bubble.style.animationDuration = (Math.random() * 7 + 5) + 's';
+            bubble.style.animationDelay = (Math.random() * 5) + 's';
+            bubblesContainer.appendChild(bubble);
+        }
+
+        // 게임 설정
+        const ROWS = 10;
+        const COLS = 17;
+        const TOTAL_APPLES = ROWS * COLS;
+        const INITIAL_TIME = 120.0;
+
+        let apples = [];
+        let score = 0;
+        let timeLeft = INITIAL_TIME;
+        let timerInterval = null;
+        let isPaused = false;
+        let isGameOver = false;
+
+        let sessionScores = [];
+
+        // 드래그 변수
+        let isDragging = false;
+        let startX = 0, startY = 0;
+        let currentX = 0, currentY = 0;
+
+        // DOM 캐싱
+        const boardElement = document.getElementById('game-board');
+        const boardContainer = document.getElementById('board-container');
+        const selectionBox = document.getElementById('selection-box');
+        const timerDisplay = document.getElementById('timer-display');
+        const scoreDisplay = document.getElementById('score-display');
+        const sumDisplay = document.getElementById('sum-display');
+        const pauseScreen = document.getElementById('pause-screen');
+        const gameoverScreen = document.getElementById('gameover-screen');
+        const sessionRankingsList = document.getElementById('session-rankings');
+
+        // 버튼
+        const btnPause = document.getElementById('btn-pause');
+        const btnResume = document.getElementById('btn-resume');
+        const btnRestart = document.getElementById('btn-restart');
+        const btnRetry = document.getElementById('btn-retry');
+        const btnRankingView = document.getElementById('btn-ranking-view');
+
+        // 게임 시작/초기화
+        function initGame() {
+            clearInterval(timerInterval);
+            apples = [];
+            score = 0;
+            timeLeft = INITIAL_TIME;
+            isPaused = false;
+            isGameOver = false;
+
+            scoreDisplay.textContent = score;
+            timerDisplay.textContent = timeLeft.toFixed(1) + 's';
+            timerDisplay.classList.remove('danger');
+            sumDisplay.textContent = '0 / 10';
+            sumDisplay.style.color = '#ffd166';
+
+            pauseScreen.style.display = 'none';
+            gameoverScreen.style.display = 'none';
+            btnPause.textContent = '⏸️ 일시 정지';
+
+            boardElement.innerHTML = '';
+
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const id = r * COLS + c;
+                    const value = Math.floor(Math.random() * 9) + 1;
+
+                    const appleDiv = document.createElement('div');
+                    appleDiv.className = 'apple';
+                    appleDiv.dataset.id = id;
+
+                    const img = document.createElement('img');
+                    img.src = SQUIRTLE_IMG_URL;
+                    img.className = 'apple-img';
+                    img.alt = '꼬부기';
+
+                    const numSpan = document.createElement('span');
+                    numSpan.className = 'apple-number';
+                    numSpan.textContent = value;
+
+                    appleDiv.appendChild(img);
+                    appleDiv.appendChild(numSpan);
+                    boardElement.appendChild(appleDiv);
+
+                    apples.push({
+                        id: id,
+                        row: r,
+                        col: c,
+                        value: value,
+                        removed: false,
+                        element: appleDiv
+                    });
+                }
+            }
+
+            startTimer();
+        }
+
+        // 타이머 시작
+        function startTimer() {
+            const step = 100;
+            timerInterval = setInterval(() => {
+                if (isPaused || isGameOver) return;
+
+                timeLeft = Math.max(0, timeLeft - 0.1);
+                timerDisplay.textContent = timeLeft.toFixed(1) + 's';
+
+                if (timeLeft <= 15) {
+                    timerDisplay.classList.add('danger');
+                }
+
+                if (timeLeft <= 0) {
+                    endGame(true);
+                }
+            }, step);
+        }
+
+        function togglePause() {
+            if (isGameOver) return;
+            isPaused = !isPaused;
+            if (isPaused) {
+                pauseScreen.style.display = 'flex';
+                btnPause.textContent = '▶️ 재개하기';
+            } else {
+                pauseScreen.style.display = 'none';
+                btnPause.textContent = '⏸️ 일시 정지';
+            }
+        }
+
+        function endGame(isTimeout = false) {
+            isGameOver = true;
+            clearInterval(timerInterval);
+
+            const now = new Date();
+            const timeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+            sessionScores.push({
+                score: score,
+                timeRemaining: timeLeft.toFixed(1),
+                timestamp: timeString
+            });
+
+            sessionScores.sort((a, b) => b.score - a.score);
+            showGameOverModal(isTimeout);
+        }
+
+        function showGameOverModal(isTimeout) {
+            updateRankingsUI();
+            const gameoverTitle = document.getElementById('gameover-title');
+            const gameoverDesc = document.getElementById('gameover-desc');
+
+            if (score >= TOTAL_APPLES) {
+                gameoverTitle.textContent = "🎉 바다의 영웅 등극!";
+                gameoverDesc.textContent = `대단합니다! 모든 꼬부기(${score}마리)를 바다로 돌려보냈습니다!`;
+            } else if (isTimeout) {
+                gameoverTitle.textContent = "⏰ 시간 종료!";
+                gameoverDesc.textContent = `최종 점수: ${score}점 (구출한 꼬부기 수)`;
+            } else {
+                gameoverTitle.textContent = "현재 세션 기록";
+                gameoverDesc.textContent = `현재 점수: ${score}점`;
+            }
+
+            gameoverScreen.style.display = 'flex';
+        }
+
+        function updateRankingsUI() {
+            sessionRankingsList.innerHTML = '';
+            if (sessionScores.length === 0) {
+                sessionRankingsList.innerHTML = '<li class="ranking-item"><span>아직 등록된 기록이 없습니다.</span></li>';
+                return;
+            }
+
+            sessionScores.slice(0, 5).forEach((item, index) => {
+                const li = document.createElement('li');
+                li.className = 'ranking-item';
+                li.innerHTML = `
+                    <span>#${index + 1} 꼬부기 수호대 [${item.timestamp}]</span>
+                    <span><strong>${item.score}마리</strong> (${item.timeRemaining}s 남음)</span>
+                `;
+                sessionRankingsList.appendChild(li);
+            });
+        }
+
+        // 드래그 마우스 이벤트
+        boardContainer.addEventListener('mousedown', (e) => {
+            if (isPaused || isGameOver || e.button !== 0) return;
+
+            const rect = boardContainer.getBoundingClientRect();
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
+            isDragging = true;
+
+            selectionBox.style.left = startX + 'px';
+            selectionBox.style.top = startY + 'px';
+            selectionBox.style.width = '0px';
+            selectionBox.style.height = '0px';
+            selectionBox.style.display = 'block';
+
+            updateSelectedApples(startX, startY, startX, startY);
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging || isPaused || isGameOver) return;
+
+            const rect = boardContainer.getBoundingClientRect();
+            currentX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+            currentY = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
+
+            const boxLeft = Math.min(startX, currentX);
+            const boxTop = Math.min(startY, currentY);
+            const boxWidth = Math.abs(currentX - startX);
+            const boxHeight = Math.abs(currentY - startY);
+
+            selectionBox.style.left = boxLeft + 'px';
+            selectionBox.style.top = boxTop + 'px';
+            selectionBox.style.width = boxWidth + 'px';
+            selectionBox.style.height = boxHeight + 'px';
+
+            updateSelectedApples(boxLeft, boxTop, boxLeft + boxWidth, boxTop + boxHeight);
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (!isDragging) return;
+            isDragging = false;
+            selectionBox.style.display = 'none';
+
+            processSelection();
+        });
+
+        function updateSelectedApples(x1, y1, x2, y2) {
+            let currentSum = 0;
+            const containerRect = boardContainer.getBoundingClientRect();
+
+            apples.forEach(apple => {
+                if (apple.removed) return;
+
+                const elemRect = apple.element.getBoundingClientRect();
+                const appleX1 = elemRect.left - containerRect.left;
+                const appleY1 = elemRect.top - containerRect.top;
+                const appleX2 = elemRect.right - containerRect.left;
+                const appleY2 = elemRect.bottom - containerRect.top;
+
+                const isIntersect = !(x2 < appleX1 || x1 > appleX2 || y2 < appleY1 || y1 > appleY2);
+
+                if (isIntersect) {
+                    apple.element.classList.add('selected');
+                    currentSum += apple.value;
+                } else {
+                    apple.element.classList.remove('selected');
+                }
+            });
+
+            sumDisplay.textContent = `${currentSum} / 10`;
+            if (currentSum === 10) {
+                sumDisplay.style.color = '#52b788';
+            } else if (currentSum > 10) {
+                sumDisplay.style.color = '#ff6b6b';
+            } else {
+                sumDisplay.style.color = '#ffd166';
+            }
+        }
+
+        function processSelection() {
+            const selected = apples.filter(a => !a.removed && a.element.classList.contains('selected'));
+            const sum = selected.reduce((acc, curr) => acc + curr.value, 0);
+
+            if (sum === 10 && selected.length > 0) {
+                selected.forEach(apple => {
+                    apple.removed = true;
+                    apple.element.classList.remove('selected');
+                    apple.element.classList.add('removed');
+
+                    createWaterSplash(apple.element);
+                });
+
+                score += selected.length;
+                scoreDisplay.textContent = score;
+
+                const remaining = apples.filter(a => !a.removed).length;
+                if (remaining === 0) {
+                    endGame(false);
+                }
+            } else {
+                selected.forEach(apple => {
+                    apple.element.classList.remove('selected');
+                });
+            }
+
+            sumDisplay.textContent = '0 / 10';
+            sumDisplay.style.color = '#ffd166';
+        }
+
+        // 물방울 퐁/스플래시 파티클 효과
+        function createWaterSplash(targetElem) {
+            const splash = document.createElement('div');
+            splash.className = 'water-splash';
+            splash.style.left = targetElem.offsetLeft + 'px';
+            splash.style.top = targetElem.offsetTop + 'px';
+            boardElement.appendChild(splash);
+
+            // 물방울 파편들
+            for (let i = 0; i < 6; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'splash-particle';
+                particle.style.left = (targetElem.offsetLeft + 16) + 'px';
+                particle.style.top = (targetElem.offsetTop + 16) + 'px';
+
+                const angle = Math.random() * Math.PI * 2;
+                const dist = Math.random() * 30 + 15;
+                particle.style.setProperty('--tx', `${Math.cos(angle) * dist}px`);
+                particle.style.setProperty('--ty', `${Math.sin(angle) * dist}px`);
+
+                boardElement.appendChild(particle);
+                setTimeout(() => particle.remove(), 450);
+            }
+
+            setTimeout(() => splash.remove(), 450);
+        }
+
+        btnPause.addEventListener('click', togglePause);
+        btnResume.addEventListener('click', togglePause);
+        btnRestart.addEventListener('click', initGame);
+        btnRetry.addEventListener('click', initGame);
+        btnRankingView.addEventListener('click', () => {
+            if (isGameOver) return;
+            showGameOverModal(false);
+        });
+
+        initGame();
+    </script>
+</body>
+</html>
